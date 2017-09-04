@@ -38,7 +38,7 @@ public:
     uint8_t (&getDisplay())[32][64];
     bool loadGame();
     void loadFile(const std::string& filename);
-    void setKeyState(uint8_t key, bool state);
+    void setKeyState(size_t key, bool state);
 private:
     uint8_t memory[4096]; //Chip8 has 4KB of RAM
     uint8_t display[32][64]; //Chip8 used 64*32 (64 pixels height and 32 pixels width) monochrome display

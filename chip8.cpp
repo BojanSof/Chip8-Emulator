@@ -137,13 +137,14 @@ void Chip8::emulate(){
             pc += 2;
         break;
         case 0x000E: //opcode 0x8XYE: Shifts VX left by one. VF is set to the value of the most significant bit of VX before the shift.
-            V[0xF] = V[(opcode & 0x0F00) >> 8] >> 7;
+            V[0xF] = (V[(opcode & 0x0F00) >> 8]) >> 7;
             V[(opcode & 0x0F00) >> 8] <<= 1;
             pc += 2;
         break;
         default: std::cerr<<"Unknown opcode "<<std::hex<<opcode<<std::endl;
         break;
         }
+    break;
     case 0x9000: //opcode 9XY0: Skips the next instruction if VX doesn't equal VY. (Usually the next instruction is a jump to skip a code block)
         if(V[(opcode & 0x0F00) >> 8] != V[(opcode & 0x00F0) >> 4])
             pc += 4;
@@ -158,7 +159,7 @@ void Chip8::emulate(){
         pc = V[0] + (opcode & 0x0FFF);
     break;
     case 0xC000: //opcode 0xCXNN: Sets VX to the result of a bitwise and operation on a random number (Typically: 0 to 255) and NN.
-        V[(opcode & 0x0F00) >> 8] = (rand() % 0xFF) & (opcode & 0x00FF);
+        V[(opcode & 0x0F00) >> 8] = (rand() % 256) & (opcode & 0x00FF);
         pc += 2;
     break;
     case 0xD000:{ //opcode 0xDXYN: Draws a sprite at coordinate (VX, VY) that has a width of 8 pixels and a height of N pixels. Each row of 8 pixels is read as bit-coded starting from memory location I; I value doesn’t change after the execution of this instruction. As described above, VF is set to 1 if any screen pixels are flipped from set to unset when the sprite is drawn, and to 0 if that doesn’t happen
@@ -172,15 +173,17 @@ void Chip8::emulate(){
             for(uint8_t xline = 0; xline < 8; xline++){
                 if(pixel & (0x80 >> xline)){
                     if(display[y + yline][x + xline])
+                    //if(display[(x+xline + (y+yline)*64)])
                         V[0xF] = 1;
                     display[y + yline][x + xline] ^= 1;
+                    //display[x+xline + (y+yline)*64] ^= 1;
                 }
             }
         }
         displayFlag = true;
         pc += 2;
-    break;
     }
+    break;
     case 0xE000:
         switch(opcode & 0x000F){
         case 0x000E: //opcode 0xEX9E: Skips the next instruction if the key stored in VX is pressed. (Usually the next instruction is a jump to skip a code block)
@@ -227,13 +230,13 @@ void Chip8::emulate(){
             case 0x0050: //opcode 0xFX55: Stores V0 to VX (including VX) in memory starting at address I.
                 for(size_t i = 0; i <= ((opcode & 0x0F00) >> 8); i++)
                     memory[I+i] = V[i];
-                //I += ((opcode & 0x0F00) >> 8) + 1;
+                I += ((opcode & 0x0F00) >> 8) + 1;
                 pc += 2;
             break;
             case 0x0060: //opcode 0xFX65: Fills V0 to VX (including VX) with values from memory starting at address I.
                 for(size_t i = 0; i <= ((opcode & 0x0F00) >> 8); i++)
                     V[i] = memory[I+i];
-                //I += ((opcode & 0x0F00) >> 8) + 1;
+                I += ((opcode & 0x0F00) >> 8) + 1;
                 pc += 2;
             break;
             default: std::cerr<<"Unknown opcode "<<std::hex<<opcode<<std::endl;
@@ -249,7 +252,7 @@ void Chip8::emulate(){
             pc += 2;
         break;
         case 0x0009: //opcode 0xFX29: Sets I to the location of the sprite for the character in VX. Characters 0-F (in hexadecimal) are represented by a 4x5 font.
-            I = V[(opcode & 0x0F00) >> 8] * 0x5;
+            I = V[(opcode & 0x0F00) >> 8]*5;
             pc += 2;
         break;
         case 0x0003: //opcode 0xFX33: Stores the binary-coded decimal representation of VX, with the most significant of three digits at the address in I, the middle digit at I plus 1, and the least significant digit at I plus 2. (In other words, take the decimal representation of VX, place the hundreds digit in memory at location in I, the tens digit at location I+1, and the ones digit at location I+2.)
@@ -269,6 +272,18 @@ void Chip8::emulate(){
         //std::cout<<"BEEP"<<char(7)<<std::endl;
         sound_timer--;
     }
+    /*std::cout<<"Program counter: "<<pc<<std::endl;
+    std::cout<<"Index register: "<<I<<std::endl;
+    std::cout<<"Stack Pointer: "<<stack_pointer<<std::endl;
+    for(size_t i = 0; i < 16; i++){
+        std::cout<<"V["<<i<<"]="<<V[i]<<std::endl;
+    }
+    for(size_t i = 0; i < 16; i++){
+        std::cout<<"stack["<<i<<"]="<<stack[i]<<std::endl;
+    }
+    for(size_t i = 0; i < 16; i++){
+        std::cout<<"keys["<<i<<"]="<<keys[i]<<std::endl;
+    }*/
 
 }
 
@@ -301,13 +316,12 @@ void Chip8::loadFile(const std::string& filename){
     while(file.good())
 	{
 		//Read file into memory
-		memory[i] = file.get();
-		++i;
+		memory[i++] = file.get();
 	}
     std::cout<<"Done."<<std::endl;
 }
 
-void Chip8::setKeyState(uint8_t key, bool state){
+void Chip8::setKeyState(size_t key, bool state){
     if(state) keys[key] = 1;
     else      keys[key] = 0;
 }

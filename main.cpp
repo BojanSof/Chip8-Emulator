@@ -28,8 +28,12 @@ void getKeyState(Chip8& chip8){
 int main(int argc, char* argv[])
 {
     Chip8 chip8;
-    if(argc != 2)
-        chip8.loadFile("D:\\Projects\\C++\\Chip8\\c8games\\INVADERS");
+    if(argc != 2){
+        std::cout << "Please enter file location: ";
+        std::string file;
+        std::getline(std::cin, file);
+        chip8.loadFile(file);
+    }
     else
         chip8.loadFile(argv[1]);
     sf::RenderWindow window(sf::VideoMode(832,416), "CHIP-8 Emulator");
@@ -43,7 +47,6 @@ int main(int argc, char* argv[])
                 window.close();
         }
         //Update window
-        getKeyState(chip8);
         chip8.emulate();
         if(chip8.displayFlag){
             window.clear();
@@ -56,10 +59,11 @@ int main(int argc, char* argv[])
                     }
                 }
             }
-        //Render Window
-        window.display();
-        chip8.displayFlag = false;
+            //Render Window
+            window.display();
+            chip8.displayFlag = false;
         }
+        getKeyState(chip8);
     }
 }
 
