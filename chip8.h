@@ -34,10 +34,12 @@ public:
 
     bool displayFlag;
 
-    void emulate();
+    void clearScreen();
+    void emulateCycle();
     uint8_t (&getDisplay())[32][64];
     bool loadGame();
     void loadFile(const std::string& filename);
+    void reset();
     void setKeyState(size_t key, bool state);
 private:
     uint8_t memory[4096]; //Chip8 has 4KB of RAM

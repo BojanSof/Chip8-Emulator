@@ -2,45 +2,21 @@
 
 //No argument constructor initializes the system
 Chip8::Chip8(){
-    //First clear the memory
-    for(size_t i = 0; i < 4096; i++)
-        memory[i] = 0;
-    //Now load the fontset into memory
-    for(size_t i = 0; i < 80; i++)
-        memory[i] = chip8_characters[i];
+    srand(time(NULL)); //Seed the random number generator
+    reset(); //Reset the system
+}
 
-    pc = 0x200; //Program counter starts at 0x200
-    I = 0; //Reset the Index Register
-    stack_pointer = 0; //Reset the Stack Pointer
-    opcode = 0; //Set current opcode to zero
+Chip8::~Chip8() {}
 
-    delay_timer = 0; //Reset the delay timer
-    sound_timer = 0; //Reset the sound timer
-
-    //Reset the registers
-    for(size_t i = 0; i < 16; i++)
-        V[i] = 0;
-
-    //Reset the stack
-    for(size_t i = 0; i < 16; i++)
-        stack[i] = 0;
-
-    //Set the keypad keys state to not pressed
-    for(size_t i = 0; i < 16; i++)
-        keys[i] = 0;
-
+void Chip8::clearScreen(){
     //Clear the display
     for(size_t width = 0; width < 32; width++)
         for(size_t height = 0; height < 64; height++)
             display[width][height] = 0;
     displayFlag = true;
-
-    srand(time(NULL)); //for random number generator
 }
 
-Chip8::~Chip8() {}
-
-void Chip8::emulate(){
+void Chip8::emulateCycle(){
     //Fetch opcode
     //Opcode is 2 bytes long so we need to merge two successive bytes of memory
     opcode = memory[pc] << 8 | memory[pc+1];
@@ -49,10 +25,7 @@ void Chip8::emulate(){
     case 0x0000:
         switch(opcode & 0x000F){
         case 0x0000: //opcode 0x00E0: Clears the screen.
-            for(size_t width = 0; width < 32; width++)
-                for(size_t height = 0; height < 64; height++)
-                    display[width][height] = 0;
-            displayFlag = true;
+            clearScreen();
             pc += 2; //increase program counter
         break;
         case 0x000E: //opcode 0x00EE: Returns from a subroutine.
@@ -94,7 +67,6 @@ void Chip8::emulate(){
     break;
     case 0x7000: //opcode 0x7XNN: Adds NN to VX.
         V[(opcode & 0x0F00) >> 8] += opcode & 0x00FF;
-        //if(V[(opcode & 0x0F00) >> 8] > 255) V[(opcode & 0x0F00) >> 8] -= 256;
         pc += 2;
     break;
     case 0x8000:
@@ -123,7 +95,6 @@ void Chip8::emulate(){
         case 0x0005: //opcode 0x8XY5: VY is subtracted from VX. VF is set to 0 when there's a borrow, and 1 when there isn't.
             V[0xF] = (V[(opcode & 0x00F0) >> 4] > V[(opcode & 0x0F00) >> 8]) ? 0 : 1;
             V[(opcode & 0x0F00) >> 8] -= V[(opcode & 0x00F0) >> 4];
-            //if(V[(opcode & 0x0F00) >> 8] < 0) V[(opcode & 0x0F00) >> 8] += 256;
             pc += 2;
         break;
         case 0x0006: //opcode 0x8XY6: Shifts VX right by one. VF is set to the value of the least significant bit of VX before the shift.
@@ -173,10 +144,8 @@ void Chip8::emulate(){
             for(uint8_t xline = 0; xline < 8; xline++){
                 if(pixel & (0x80 >> xline)){
                     if(display[y + yline][x + xline])
-                    //if(display[(x+xline + (y+yline)*64)])
                         V[0xF] = 1;
                     display[y + yline][x + xline] ^= 1;
-                    //display[x+xline + (y+yline)*64] ^= 1;
                 }
             }
         }
@@ -272,6 +241,7 @@ void Chip8::emulate(){
         //std::cout<<"BEEP"<<char(7)<<std::endl;
         sound_timer--;
     }
+    //DEBUG
     /*std::cout<<"Program counter: "<<pc<<std::endl;
     std::cout<<"Index register: "<<I<<std::endl;
     std::cout<<"Stack Pointer: "<<stack_pointer<<std::endl;
@@ -293,32 +263,53 @@ uint8_t (&Chip8::getDisplay())[32][64]{
 
 void Chip8::loadFile(const std::string& filename){
     std::cout<<"Loading file "<<filename<<"..."<<std::endl;
-    std::ifstream file(filename, std::ios::binary | std::ios::in); //Open file in binary mode
+    std::ifstream file(filename, std::ios::binary | std::ios::in | std::ios::ate); //Open file in binary mode and seek to the end of it
     if(file.is_open() == false){
         std::cerr<<"Can't open "<<filename<<std::endl;
         return;
     }
-    /*//Find file size
-    file.seekg(0, std::ios::end);
-    int file_size = file.tellg();
-    //Create temporary buffer and read the file into it
-    char* buffer = new char[file_size + 1];
-    file.read(buffer, file_size);
-    buffer[file_size] = '\0';
-    //Now copy the buffer into memory starting from 0x200 == 512
-    for(size_t i = 0; i < file_size; i++)
-        memory[i + 512] = (uint8_t)buffer[i];
-    //Close the file
-    file.close();
-    //Remove the temporary buffer
-    delete[] buffer;*/
-    int i = pc;
-    while(file.good())
-	{
-		//Read file into memory
-		memory[i++] = file.get();
-	}
+    unsigned int filesize = file.tellg(); //Find file size
+    if(filesize > 0xFFF-0x200){
+        std::cerr<<"File size too big to feet in memory!"<<std::endl;
+        return;
+    }
+    char* data = (char*)(&memory[0x200]); //Create pointer to memory location at 0x200
+    file.seekg(0, std::ios::beg); //Seek to the beginning of file
+    file.read(data, filesize); //Read the file into memory location at 0x200
+    file.close(); //Close the file
     std::cout<<"Done."<<std::endl;
+}
+
+void Chip8::reset(){
+     //First clear the memory
+    for(size_t i = 0; i < 4096; i++)
+        memory[i] = 0;
+    //Now load the fontset into memory
+    for(size_t i = 0; i < 80; i++)
+        memory[i] = chip8_characters[i];
+
+    pc = 0x200; //Program counter starts at 0x200
+    I = 0; //Reset the Index Register
+    stack_pointer = 0; //Reset the Stack Pointer
+    opcode = 0; //Set current opcode to zero
+
+    delay_timer = 0; //Reset the delay timer
+    sound_timer = 0; //Reset the sound timer
+
+    //Reset the registers
+    for(size_t i = 0; i < 16; i++)
+        V[i] = 0;
+
+    //Reset the stack
+    for(size_t i = 0; i < 16; i++)
+        stack[i] = 0;
+
+    //Set the keypad keys state to not pressed
+    for(size_t i = 0; i < 16; i++)
+        keys[i] = 0;
+
+    //Clear screen
+    clearScreen();
 }
 
 void Chip8::setKeyState(size_t key, bool state){
